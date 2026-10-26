@@ -26,7 +26,7 @@ def main():
 
         # Run classification through our temporal state engine filter
         if landmarks is not None:
-            gesture, debug_info = classifier.update_state(landmarks)
+            gesture, debug_info = classifier.classify(landmarks)
 
             # Print the classified text cleanly onto the top of the application frame
             cv2.putText(
@@ -80,6 +80,7 @@ def main():
             break
 
     cap.release()
+    detector.close()
     cv2.destroyAllWindows()
 
 
