@@ -1,8 +1,10 @@
 # main.py
 import cv2
 import time
-from src.detector import HandDetector
-from src.gestures import GestureClassifier
+
+# Direct imports from the same directory level
+from detector import HandDetector
+from gestures import GestureClassifier
 
 
 def main():
@@ -22,9 +24,9 @@ def main():
         frame = cv2.flip(frame, 1)
         frame, landmarks = detector.process_frame(frame)
 
-        # Run classification if a hand is actively present in the frame matrix
+        # Run classification through our temporal state engine filter
         if landmarks is not None:
-            gesture, debug_info = classifier.classify(landmarks)
+            gesture, debug_info = classifier.update_state(landmarks)
 
             # Print the classified text cleanly onto the top of the application frame
             cv2.putText(
@@ -40,7 +42,7 @@ def main():
             # Draw the finger state bit array underneath for judge inspection
             cv2.putText(
                 frame,
-                f"Vector State: {debug_info.get('finger_states')}",
+                f"Vector State: {debug_info}",
                 (10, 70),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
