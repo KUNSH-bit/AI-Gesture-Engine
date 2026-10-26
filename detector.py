@@ -33,7 +33,7 @@ class HandDetector:
         (0, 17),
     ]
 
-    def __init__(self, max_hands=1, detection_confidence=0.7, tracking_confidence=0.7):
+    def __init__(self, max_hands=1, detection_confidence=0.5, tracking_confidence=0.6):
         model_path = Path(__file__).parent / "hand_landmarker.task"
 
         if not model_path.exists():
