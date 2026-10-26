@@ -63,7 +63,6 @@ class HandDetector:
 
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-        # VIDEO mode requires increasing timestamps.
         self.timestamp_ms = max(self.timestamp_ms + 1, time.monotonic_ns() // 1_000_000)
 
         results = self.landmarker.detect_for_video(mp_image, self.timestamp_ms)
@@ -81,11 +80,10 @@ class HandDetector:
 
             raw_matrix = np.array(raw_landmarks, dtype=np.float32)
 
-            # Make all coordinates relative to the wrist.
+            # Makinf all coordinates relative to the wrist.
             wrist_coords = raw_matrix[0, :]
             normalized_landmarks = raw_matrix - wrist_coords
 
-            # Draw landmarks and connections on the camera frame.
             points = []
 
             for lm in hand_landmarks:

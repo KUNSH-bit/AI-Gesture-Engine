@@ -4,7 +4,6 @@ import time
 import sys
 import os
 
-# Ensure the framework path checks remain invariant
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from detector import HandDetector
@@ -13,28 +12,20 @@ from system_controller import SystemActionController
 
 
 def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
-    """
-    Renders a highly professional, semi-transparent Telemetry Dashboard HUD
-    directly onto the video matrix screen to display core system states.
-    """
     h, w, _ = frame.shape
 
     # Define our HUD boundary block coordinates (Top Right Panel)
     hud_x1, hud_y1 = w - 340, 15
     hud_x2, hud_y2 = w - 15, 185
 
-    # 1. Render a semi-transparent dark-mode dashboard backdrop panel
     overlay = frame.copy()
     cv2.rectangle(overlay, (hud_x1, hud_y1), (hud_x2, hud_y2), (20, 20, 20), -1)
 
-    # Dynamic alpha-blend to achieve a clean glass-overlay UI look
     alpha = 0.75
     cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
-    # Draw a clean border outline vector around our panel overlay canvas
     cv2.rectangle(frame, (hud_x1, hud_y1), (hud_x2, hud_y2), (80, 80, 80), 1)
 
-    # 2. Map structural system text readouts onto our dashboard layout
     cv2.putText(
         frame,
         "SYSTEM INTEGRATION ENGINE",
@@ -80,7 +71,6 @@ def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
         1,
     )
 
-    # Temporal Cooldown Progress State Bar Metrics
     cd_string = (
         f"{max(0.0, cooldown_left):.1f}s Locked"
         if cooldown_left > 0
