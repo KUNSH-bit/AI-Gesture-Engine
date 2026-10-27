@@ -4,14 +4,13 @@ import numpy as np
 
 class GestureClassifier:
     def __init__(self, fps=30):
-        # MediaPipe landmark indices for the structural tips of the 5 fingers
         self.TIP_IDS = [4, 8, 12, 16, 20]
 
         # 3-Second Lock Configuration parameters
         self.lock_threshold_frames = int(3.0 * fps)
         self.fist_counter = 0
 
-        # Low debouncing window for smooth continuous tracking loops
+        # Debouncer window for fast inputs response loops
         self.debounce_frames = 2
         self.current_stable_gesture = "Neutral Mode"
         self.candidate_gesture = "Neutral Mode"
@@ -20,23 +19,23 @@ class GestureClassifier:
     def classify(self, landmarks):
         """
         Processes normalized matrices to classify directional hand orientations.
-        Provides robust scale-invariant tracking for scroll triggers.
+        Provides robust scale-invariant tracking with widened thresholds for tight fists.
         """
         if landmarks is None or len(landmarks) < 21:
             return "No Hand Detected", 0.0
 
-        # 1. ISOLATE FINGER CONFIGURATIONS EXCLUSIVELY ON THE Y-AXIS (Index 1)
-        # Higher up on the screen yields a smaller Y value coordinate
+        # 1. TRACK FINGER CONFIGURATIONS ON THE Y-AXIS (Index 1)
+        # We compare the Tip position to the middle joint (PIP) to see if it is extended upward
         index_up = landmarks[8][1] < landmarks[6][1]
         middle_up = landmarks[12][1] < landmarks[10][1]
         ring_up = landmarks[16][1] < landmarks[14][1]
         pinky_up = landmarks[20][1] < landmarks[18][1]
 
-        # Inverted finger tracking profile checks (pointing downwards)
-        index_down = landmarks[8][1] > landmarks[6][1]
-        middle_down = landmarks[12][1] > landmarks[10][1]
-        ring_down = landmarks[16][1] > landmarks[14][1]
-        pinky_down = landmarks[20][1] > landmarks[18][1]
+        # Check downward extensions profile tracking metrics
+        index_down = landmarks[8][1] > landmarks[5][1] + 0.1
+        middle_down = landmarks[12][1] > landmarks[9][1] + 0.1
+        ring_down = landmarks[16][1] > landmarks[13][1] + 0.1
+        pinky_down = landmarks[20][1] > landmarks[17][1] + 0.1
 
         # 2. MEASURE THUMB-TO-INDEX TIP GEOMETRIC PROXIMITY VECTOR DISTANCE
         thumb_tip = landmarks[4]
@@ -44,9 +43,8 @@ class GestureClassifier:
         click_pinch_dist = np.linalg.norm(thumb_tip - index_base)
 
         # 3. EVALUATE PASSIVE PROFILE CONDITIONS MAPS
-        is_fist = not (
-            index_up or middle_up or ring_up or pinky_up or index_down or middle_down
-        )
+        # Widened check: A fist means no major fingers are pointing straight up or down
+        is_fist = not (index_up or middle_up or ring_up or pinky_up)
         is_open_palm_up = index_up and middle_up and ring_up and pinky_up
         is_open_palm_down = index_down and middle_down and ring_down and pinky_down
 
@@ -62,8 +60,7 @@ class GestureClassifier:
         elif index_up and middle_up and not (ring_up or pinky_up):
             raw_gesture = "Peace Sign (Play/Pause)"
         elif index_up and not (middle_up or ring_up or pinky_up or index_down):
-            # Safe high-precision click boundaries configuration
-            if click_pinch_dist < 0.38:
+            if click_pinch_dist < 0.42:
                 raw_gesture = "Left Click Triggered"
             else:
                 raw_gesture = "Mouse Navigation Mode"

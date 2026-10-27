@@ -20,9 +20,16 @@ class SystemActionController:
 
         self.last_scroll_time = 0
 
+        # Edge-Trigger Flag to prevent discrete macro spamming loops
+        self.media_triggered = False
+
     def execute_action(self, gesture, raw_landmarks=None):
         current_time = time.time()
         time_since_last = current_time - self.last_action_time
+
+        # Reset the discrete media lock flag if the user breaks the Peace Sign shape
+        if gesture != "Peace Sign (Play/Pause)":
+            self.media_triggered = False
 
         if gesture == "Fist (Toggle Lock)":
             if time_since_last > self.action_cooldown:
@@ -35,7 +42,7 @@ class SystemActionController:
 
         action_triggered = "Tracking Pointer"
 
-        # 1. FIX: CONTINUOUS WINDOWS MOUSE-WHEEL SCROLLING WITH ACTIVE POSITION HOOKS
+        # 1. CONTINUOUS WINDOWS MOUSE-WHEEL SCROLLING
         scroll_gestures = {
             "Open Palm (Scroll Up)": 150,
             "Open Palm (Scroll Down)": -150,
@@ -45,10 +52,7 @@ class SystemActionController:
             if current_time - self.last_scroll_time >= 0.05:
                 delta = scroll_gestures[gesture]
                 try:
-                    # Dynamically capture where the mouse is sitting right now
                     mx, my = win32api.GetCursorPos()
-
-                    # Pass the active screen coordinates instead of raw 0, 0
                     win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, mx, my, delta, 0)
                     self.last_scroll_time = current_time
                     direction = "UP" if delta > 0 else "DOWN"
@@ -89,13 +93,16 @@ class SystemActionController:
 
             return action_triggered, (current_time - self.last_action_time)
 
-        # 3. GLOBAL DISCRETE MEDIA HOTKEYS MACROS
-        if time_since_last < self.action_cooldown:
-            return "COOLDOWN ACTIVE", time_since_last
-
+        # 3. DISCRETE MEDIA MACROS (Protected by Edge-Trigger State Lock flags)
         if gesture == "Peace Sign (Play/Pause)":
-            pyautogui.press("playpause")
-            action_triggered = "Media Play/Pause"
-            self.last_action_time = current_time
+            if not self.media_triggered:
+                pyautogui.press("playpause")
+                self.media_triggered = (
+                    True  # Lock down execution until gesture is broken
+                )
+                self.last_action_time = current_time
+                return "Media Play/Pause Activated", time_since_last
+            else:
+                return "Media Macro Locked (Change Gesture to Reset)", time_since_last
 
         return action_triggered, time_since_last
