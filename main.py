@@ -1,3 +1,4 @@
+# main.py
 import cv2
 import time
 import sys
@@ -10,37 +11,32 @@ from gestures import GestureClassifier
 from system_controller import SystemActionController
 
 
-def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
+def draw_dashboard(frame, gesture, action, locked_status, fps):
     h, w, _ = frame.shape
-
-    # Define our HUD boundary block coordinates (Top Right Panel)
-    hud_x1, hud_y1 = w - 340, 15
-    hud_x2, hud_y2 = w - 15, 185
+    hud_x1, hud_y1 = w - 350, 15
+    hud_x2, hud_y2 = w - 15, 150
 
     overlay = frame.copy()
-    cv2.rectangle(overlay, (hud_x1, hud_y1), (hud_x2, hud_y2), (20, 20, 20), -1)
-
-    alpha = 0.75
+    cv2.rectangle(overlay, (hud_x1, hud_y1), (hud_x2, hud_y2), (15, 15, 15), -1)
+    alpha = 0.8
     cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
-
-    cv2.rectangle(frame, (hud_x1, hud_y1), (hud_x2, hud_y2), (80, 80, 80), 1)
+    cv2.rectangle(frame, (hud_x1, hud_y1), (hud_x2, hud_y2), (70, 70, 70), 1)
 
     cv2.putText(
         frame,
-        "SYSTEM INTEGRATION ENGINE",
+        "TOUCHLESS AIR-MOUSE CONTROL HUB",
         (hud_x1 + 15, hud_y1 + 25),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
+        0.5,
         (255, 255, 255),
         2,
     )
 
-    # Safety Control Lock Indicator State
-    lock_text = "SECURE / LOCKED" if locked_status else "ACTIVE / OPERATIONAL"
+    lock_text = "SYSTEM DISABLED / LOCKED" if locked_status else "AIR-MOUSE OPERATIONAL"
     lock_color = (0, 0, 255) if locked_status else (0, 255, 0)
     cv2.putText(
         frame,
-        f"Safety Status: {lock_text}",
+        f"Mode: {lock_text}",
         (hud_x1 + 15, hud_y1 + 55),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.45,
@@ -48,10 +44,9 @@ def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
         1,
     )
 
-    # Hand Core Stable Input Telemetry State
     cv2.putText(
         frame,
-        f"Stabilized Input: {gesture}",
+        f"Gesture Shape: {gesture}",
         (hud_x1 + 15, hud_y1 + 85),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.45,
@@ -59,10 +54,9 @@ def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
         1,
     )
 
-    # Operating System Action Macro Execution Status State
     cv2.putText(
         frame,
-        f"Executed Macro: {action}",
+        f"OS Output: {action[:28]}",
         (hud_x1 + 15, hud_y1 + 115),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.45,
@@ -70,26 +64,9 @@ def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
         1,
     )
 
-    cd_string = (
-        f"{max(0.0, cooldown_left):.1f}s Locked"
-        if cooldown_left > 0
-        else "READY TO TRIGGER"
-    )
-    cd_color = (100, 100, 255) if cooldown_left > 0 else (0, 255, 0)
     cv2.putText(
         frame,
-        f"Macro Cooldown: {cd_string}",
-        (hud_x1 + 15, hud_y1 + 145),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.45,
-        cd_color,
-        1,
-    )
-
-    # Performance metric loop index readout counter
-    cv2.putText(
-        frame,
-        f"Performance Loop: {int(fps)} FPS",
+        f"Loop Performance: {int(fps)} FPS",
         (15, 30),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
@@ -100,66 +77,37 @@ def draw_dashboard(frame, gesture, action, locked_status, cooldown_left, fps):
 
 def main():
     cap = cv2.VideoCapture(0)
-
-    # Initialize our highly optimized modular processing engine suite
     detector = HandDetector()
     classifier = GestureClassifier(
-        debounce_frames=12
-    )  # High filter debounce value for safety
-    controller = SystemActionController(
-        action_cooldown=1.8
-    )  # 1.8 seconds hardware cool window
+        debounce_frames=3
+    )  # Low debounce for fast cursor tracking response
+    controller = SystemActionController(action_cooldown=1.0)
 
     prev_time = 0
     current_action = "None"
-
-    print("\n=======================================================")
-    print("AI SYSTEM INTEGRATION CONTROL HUB ENGINE INITIALIZED")
-    print("=======================================================")
-    print("• Hold up a FIST for 1.5 seconds to Toggle System Lock/Unlock.")
-    print("• Hold up an OPEN PALM to dynamically Scroll Windows Up.")
-    print("• Hold up a PEACE SIGN to emit a system Media Play/Pause command.")
-    print("• Hold up a THUMBS UP to trigger an Alt+Tab App Switch sequence.")
-    print("• Press 'q' within the dashboard screen console matrix to terminate.")
-    print("=======================================================\n")
 
     while cap.isOpened():
         success, frame = cap.read()
         if not success:
             break
 
-        frame = cv2.flip(frame, 1)
+        # Keep mirroring OFF so hand directions match mouse movement intuitively
 
-        # 1. Core Hand Mesh landmark ingestion sequence
-        frame, landmarks = detector.process_frame(frame)
-
-        # 2. Evaluate spatial landmarks through our state debouncing filter block
+        frame, landmarks, raw_landmarks = detector.process_frame(frame)
         gesture, _ = classifier.update_state(landmarks)
 
-        # 3. Process execution outputs based on temporal logic parameters
-        action_status, time_since_last = controller.execute_action(gesture)
+        action_status, _ = controller.execute_action(gesture, raw_landmarks)
 
-        # Clean up text feedback behaviors for UI clarity
-        if action_status not in ["COOLDOWN ACTIVE", "SYSTEM LOCKED"]:
-            current_action = action_status
-        elif gesture == "No Hand Detected" and action_status != "SYSTEM LOCKED":
+        if gesture == "No Hand Detected":
             current_action = "None"
+        else:
+            current_action = action_status
 
-        # 4. Calculate the real-time cooldown clock metrics
-        cooldown_left = controller.action_cooldown - time_since_last
-        if controller.system_locked:
-            cooldown_left = 0.0
-
-        # 5. Measure loop frequencies metrics
         curr_time = time.time()
         fps = 1 / (curr_time - prev_time)
         prev_time = curr_time
 
-        # 6. Render the telemetry overlay engine panel framework visually
-        draw_dashboard(
-            frame, gesture, current_action, controller.system_locked, cooldown_left, fps
-        )
-
+        draw_dashboard(frame, gesture, current_action, controller.system_locked, fps)
         cv2.imshow("AI Gesture-Driven Reaction Engine Dashboard", frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
