@@ -21,11 +21,14 @@ class SystemActionController:
         self.last_scroll_time = 0
         self.media_triggered = False
 
-        # State parameters to separate clicking from dragging actions
         self.drag_mode_engaged = False
         self.thumb_was_pressed = False
         self.start_x, self.start_y = 0, 0
         self.press_start_time = 0
+
+        # State indicators to manage the application menu switcher pipeline
+        self.alt_tab_active = False
+        self.last_switch_time = 0
 
     def execute_action(self, gesture, raw_landmarks=None):
         current_time = time.time()
@@ -34,20 +37,22 @@ class SystemActionController:
         if gesture != "Peace Sign (Play/Pause)":
             self.media_triggered = False
 
-        # 1. CLEAN CLICK UP / DROP SYSTEM OVERRIDES
+        # RELEASE GATES: If switcher menu was active but gesture drops, close the hooks
+        if "Thumbs Up" not in gesture and self.alt_tab_active:
+            pyautogui.keyUp("alt")
+            self.alt_tab_active = False
+            print("[SWITCHER ENGINE] - Selected App Loaded successfully.")
+
         if gesture != "Air Drag Active" and self.thumb_was_pressed:
             if self.drag_mode_engaged:
-                # If we were dragging, release the mouse down lock state safely
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
                 self.drag_mode_engaged = False
                 print("[MOUSE SYSTEM] - Air Drag Dropped.")
             else:
-                # If hand movement stayed inside buffer window, trigger a fast Single Click tap
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
                 time.sleep(0.01)
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
                 print("[MOUSE SYSTEM] - Fast Single Click Executed.")
-
             self.thumb_was_pressed = False
 
         if gesture == "Fist (Toggle Lock)":
@@ -61,14 +66,38 @@ class SystemActionController:
 
         action_triggered = "Tracking Pointer"
 
-        # 2. FIXED SCROLLING DICTIONARY MAPS
+        # 1. APPLICATION SELECTOR HUB WINDOW SWITCHER CONTROL
+        if "Thumbs Up" in gesture:
+            # If switcher isn't open yet, fire Alt Down hold key lock
+            if not self.alt_tab_active:
+                pyautogui.keyDown("alt")
+                pyautogui.press("tab")
+                self.alt_tab_active = True
+                self.last_switch_time = current_time
+                return "APP SWITCHER OPENED", time_since_last
+
+            # Manage step navigation pacing loops (300ms intervals to prevent fly-by skipping)
+            if current_time - self.last_switch_time > 0.35:
+                if gesture == "Thumbs Up (Switch Right)":
+                    pyautogui.press("tab")
+                    self.last_switch_time = current_time
+                    return "SWITCHING FORWARD (Right)", time_since_last
+                elif gesture == "Thumbs Up (Switch Left)":
+                    # Shift + Tab cycles application choices backwards on Windows setups
+                    pyautogui.hotkey("shift", "tab")
+                    self.last_switch_time = current_time
+                    return "SWITCHING BACKWARD (Left)", time_since_last
+
+            return (
+                "MENU HOLD ACTIVE (Tilt Hand Left/Right to Navigate)",
+                time_since_last,
+            )
+
+        # 2. SCROLLING ENGINE PIPELINE
         scroll_gestures = {
             "Open Palm (Scroll Up)": (win32con.MOUSEEVENTF_WHEEL, 150),
             "Open Palm (Scroll Down)": (win32con.MOUSEEVENTF_WHEEL, -150),
-            "Rock Sign (Scroll Down)": (
-                win32con.MOUSEEVENTF_WHEEL,
-                -150,
-            ),  # Back to matching scroll down
+            "Rock Sign (Scroll Down)": (win32con.MOUSEEVENTF_WHEEL, -150),
         }
 
         if gesture in scroll_gestures:
@@ -84,7 +113,7 @@ class SystemActionController:
                     return "SCROLL ERROR", time_since_last
             return "SCROLL WAITING", time_since_last
 
-        # 3. HIGH-PRECISION SEPARATED CURSOR NAVIGATION PIPELINE
+        # 3. MOUSE CURSOR POSITIONING PIPELINE
         if (
             (gesture in ["Mouse Navigation Mode", "Air Drag Active"])
             and raw_landmarks is not None
@@ -100,39 +129,31 @@ class SystemActionController:
             curr_x = self.prev_x + (target_x - self.prev_x) / self.smoothening
             curr_y = self.prev_y + (target_y - self.prev_y) / self.smoothening
 
-            # Execute cursor update shifts
             pyautogui.moveTo(int(curr_x), int(curr_y))
             self.prev_x, self.prev_y = float(curr_x), float(curr_y)
             action_triggered = "Cursor Active"
 
-            # Smart Spatial Selection Buffer Engine
             if gesture == "Air Drag Active":
                 if not self.thumb_was_pressed:
-                    # Ingest initial position anchors when thumb pulls close
                     self.start_x, self.start_y = curr_x, curr_y
                     self.thumb_was_pressed = True
                     self.press_start_time = current_time
                     action_triggered = "Click Input Initialized"
                 else:
-                    # Calculate tracking distance moved since thumb first closed
                     distance_moved = np.sqrt(
                         (curr_x - self.start_x) ** 2 + (curr_y - self.start_y) ** 2
                     )
-
-                    # Engage dragging down event ONLY if index travels past a 25-pixel buffer window
                     if not self.drag_mode_engaged and distance_moved > 25:
                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
                         self.drag_mode_engaged = True
                         print("[MOUSE SYSTEM] - Drag Click Lock Engaged.")
-
                     if self.drag_mode_engaged:
                         action_triggered = "DRAGGING ASSET..."
                     else:
                         action_triggered = "PREPARED TO CLICK / TAP"
-
             return action_triggered, time_since_last
 
-        # 4. DISCRETE MEDIA MACROS
+        # 4. DISCRETE MEDIA CONTEXT KEYS
         if gesture == "Peace Sign (Play/Pause)":
             if not self.media_triggered:
                 pyautogui.press("playpause")
