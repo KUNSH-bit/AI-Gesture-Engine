@@ -3,70 +3,84 @@ import numpy as np
 
 
 class GestureClassifier:
-    def __init__(self, debounce_frames=8):
+    def __init__(self, fps=30):
+        # MediaPipe landmark indices for the structural tips of the 5 fingers
         self.TIP_IDS = [4, 8, 12, 16, 20]
-        self.debounce_frames = debounce_frames
 
-        # Temporal persistence tracking parameters
+        # 3-Second Lock Configuration parameters
+        self.lock_threshold_frames = int(3.0 * fps)
+        self.fist_counter = 0
+
+        # Low debouncing window for smooth continuous tracking loops
+        self.debounce_frames = 2
         self.current_stable_gesture = "Neutral Mode"
         self.candidate_gesture = "Neutral Mode"
         self.candidate_counter = 0
 
     def classify(self, landmarks):
         """
-        Evaluates scale-normalized matrices using strict structural guards.
-        Returns an explicit 'Neutral Mode' if input configurations match no macros.
+        Processes normalized matrices to classify directional hand orientations.
+        Provides robust scale-invariant tracking for scroll triggers.
         """
         if landmarks is None or len(landmarks) < 21:
-            return "No Hand Detected", []
+            return "No Hand Detected", 0.0
 
-        fingers_open = []
+        # 1. ISOLATE FINGER CONFIGURATIONS EXCLUSIVELY ON THE Y-AXIS (Index 1)
+        # Higher up on the screen yields a smaller Y value coordinate
+        index_up = landmarks[8][1] < landmarks[6][1]
+        middle_up = landmarks[12][1] < landmarks[10][1]
+        ring_up = landmarks[16][1] < landmarks[14][1]
+        pinky_up = landmarks[20][1] < landmarks[18][1]
 
-        # 1. INVARIANT THUMB DISTANCE: Measured using scale-normalized vectors
+        # Inverted finger tracking profile checks (pointing downwards)
+        index_down = landmarks[8][1] > landmarks[6][1]
+        middle_down = landmarks[12][1] > landmarks[10][1]
+        ring_down = landmarks[16][1] > landmarks[14][1]
+        pinky_down = landmarks[20][1] > landmarks[18][1]
+
+        # 2. MEASURE THUMB-TO-INDEX TIP GEOMETRIC PROXIMITY VECTOR DISTANCE
         thumb_tip = landmarks[4]
         index_base = landmarks[5]
-        thumb_to_index_dist = np.linalg.norm(thumb_tip - index_base)
+        click_pinch_dist = np.linalg.norm(thumb_tip - index_base)
 
-        # Since landmarks are perfectly normalized by hand size, thresholds are fixed constants
-        if thumb_to_index_dist > 0.65:
-            fingers_open.append(1)  # Extended
-        else:
-            fingers_open.append(0)  # Closed
+        # 3. EVALUATE PASSIVE PROFILE CONDITIONS MAPS
+        is_fist = not (
+            index_up or middle_up or ring_up or pinky_up or index_down or middle_down
+        )
+        is_open_palm_up = index_up and middle_up and ring_up and pinky_up
+        is_open_palm_down = index_down and middle_down and ring_down and pinky_down
 
-        # 2. FINGER HEIGHT CHECKS: (Y-axis coordinate comparisons)
-        for i in range(1, 5):
-            tip_idx = self.TIP_IDS[i]
-            pip_idx = tip_idx - 2
-            if landmarks[tip_idx][1] < landmarks[pip_idx][1]:
-                fingers_open.append(1)  # Open
-            else:
-                fingers_open.append(0)  # Closed
-
-        # 3. SAFETY COMMAND MAPPING DICTIONARY MATRIX
-        # Explicitly falls back to "Neutral Mode" when patterns deviate
+        # 4. DECISION TREE RESOLUTION LAYER
         raw_gesture = "Neutral Mode"
 
-        if fingers_open == [1, 1, 1, 1, 1]:
-            raw_gesture = "Open Palm (Scroll)"
-        elif fingers_open == [0, 1, 1, 0, 0]:
+        if is_fist:
+            raw_gesture = "Fist Shape Detected"
+        elif is_open_palm_up:
+            raw_gesture = "Open Palm (Scroll Up)"
+        elif is_open_palm_down:
+            raw_gesture = "Open Palm (Scroll Down)"
+        elif index_up and middle_up and not (ring_up or pinky_up):
             raw_gesture = "Peace Sign (Play/Pause)"
-        elif fingers_open == [0, 0, 0, 0, 0]:
-            raw_gesture = "Fist (Toggle Lock)"
-        elif fingers_open == [1, 1, 0, 0, 0]:
-            # Left Click Trigger check: Thumb is pinched down closely while Index is open
-            if thumb_to_index_dist < 0.35:
+        elif index_up and not (middle_up or ring_up or pinky_up or index_down):
+            # Safe high-precision click boundaries configuration
+            if click_pinch_dist < 0.38:
                 raw_gesture = "Left Click Triggered"
             else:
                 raw_gesture = "Mouse Navigation Mode"
 
-        return raw_gesture, fingers_open
+        return raw_gesture, click_pinch_dist
 
     def update_state(self, landmarks):
-        """
-        Temporal state-machine debouncer logic blocks.
-        Requires a gesture to be recognized consistently across multiple frames.
-        """
-        raw_gesture, fingers_open = self.classify(landmarks)
+        raw_gesture, click_dist = self.classify(landmarks)
+
+        if raw_gesture == "Fist Shape Detected":
+            self.fist_counter += 1
+            if self.fist_counter >= self.lock_threshold_frames:
+                self.fist_counter = 0
+                return "Fist (Toggle Lock)", self.fist_counter
+            return "HOLDING FIST TO LOCK...", self.fist_counter
+        else:
+            self.fist_counter = 0
 
         if raw_gesture == self.candidate_gesture:
             self.candidate_counter += 1
@@ -74,8 +88,7 @@ class GestureClassifier:
             self.candidate_gesture = raw_gesture
             self.candidate_counter = 1
 
-        # Commit state updates only when persistence validation passes target window
         if self.candidate_counter >= self.debounce_frames:
             self.current_stable_gesture = self.candidate_gesture
 
-        return self.current_stable_gesture, fingers_open
+        return self.current_stable_gesture, self.fist_counter

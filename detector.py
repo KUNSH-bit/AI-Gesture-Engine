@@ -31,10 +31,13 @@ class HandDetector:
 
     def process_frame(self, frame):
         """
-        Ingests frame arrays, extracts 21 keypoints, and performs two-stage spatial
-        normalization: translation centering AND scale normalization for absolute hand size.
+        Flips the frame matrix for natural mirror viewing, extracts landmarks,
+        and computes normalized scale-invariant and raw tracking arrays.
         """
+        # 1. Flip the video frame horizontally for natural mirrored interaction
+        frame = cv2.flip(frame, 1)
         h, w, _ = frame.shape
+
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
@@ -45,26 +48,24 @@ class HandDetector:
         raw_landmarks = None
 
         if result.hand_landmarks:
-            hand_pts = result.hand_landmarks[0]  # Focus on primary hand container array
+            hand_pts = result.hand_landmarks[0]
 
             points = []
             for lm in hand_pts:
                 pt_x = int(lm.x * w)
                 pt_y = int(lm.y * h)
+                # Draw green tracking skeleton points onto our mirrored frame canvas
                 cv2.circle(frame, (pt_x, pt_y), 4, (0, 255, 0), -1)
                 points.append([lm.x, lm.y, lm.z])
 
             raw_landmarks = np.array(points)
             if len(raw_landmarks) >= 21:
-                # 1. Translation Normalization (Anchor: Wrist at origin)
+                # Center coordinates relative to the wrist (Landmark 0)
                 translated = raw_landmarks - raw_landmarks[0, :]
 
-                # 2. Scale Normalization (Calculate baseline hand scale metric)
-                # Euclidean distance between Wrist (0) and Index Finger Base (5)
-                hand_scale = np.linalg.norm(translated[5] - translated[0])
-
+                # Dynamic scale vector mapping using Wrist (0) to Middle Finger Knuckle (9) distance
+                hand_scale = np.linalg.norm(translated[9] - translated[0])
                 if hand_scale > 0:
-                    # Divide entire tracking matrix by the scale scalar factor
                     normalized_landmarks = translated / hand_scale
                 else:
                     normalized_landmarks = translated
