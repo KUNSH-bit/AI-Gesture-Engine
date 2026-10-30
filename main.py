@@ -1,4 +1,3 @@
-# main.py
 import cv2
 import time
 import sys
@@ -44,7 +43,6 @@ def draw_dashboard(frame, gesture, action, locked_status, fist_frames, fps):
         1,
     )
 
-    # Render interactive countdown validation tracker visual feedback
     if gesture == "HOLDING FIST TO LOCK...":
         progress = int((fist_frames / 90) * 100)
         cv2.putText(
@@ -112,7 +110,6 @@ def main():
         if not success:
             break
 
-        # detector.process_frame handles mirroring internally now
         frame, landmarks, raw_landmarks = detector.process_frame(frame)
         gesture, fist_frames = classifier.update_state(landmarks)
 

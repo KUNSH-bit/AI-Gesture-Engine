@@ -1,4 +1,3 @@
-# detector.py
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -30,11 +29,6 @@ class HandDetector:
         self.frame_timestamp_ms = 0
 
     def process_frame(self, frame):
-        """
-        Flips the frame matrix for natural mirror viewing, extracts landmarks,
-        and computes normalized scale-invariant and raw tracking arrays.
-        """
-        # 1. Flip the video frame horizontally for natural mirrored interaction
         frame = cv2.flip(frame, 1)
         h, w, _ = frame.shape
 
@@ -54,16 +48,13 @@ class HandDetector:
             for lm in hand_pts:
                 pt_x = int(lm.x * w)
                 pt_y = int(lm.y * h)
-                # Draw green tracking skeleton points onto our mirrored frame canvas
                 cv2.circle(frame, (pt_x, pt_y), 4, (0, 255, 0), -1)
                 points.append([lm.x, lm.y, lm.z])
 
             raw_landmarks = np.array(points)
             if len(raw_landmarks) >= 21:
-                # Center coordinates relative to the wrist (Landmark 0)
                 translated = raw_landmarks - raw_landmarks[0, :]
 
-                # Dynamic scale vector mapping using Wrist (0) to Middle Finger Knuckle (9) distance
                 hand_scale = np.linalg.norm(translated[9] - translated[0])
                 if hand_scale > 0:
                     normalized_landmarks = translated / hand_scale

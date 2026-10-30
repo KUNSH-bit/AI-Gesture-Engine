@@ -1,4 +1,3 @@
-# system_controller.py
 import pyautogui
 import time
 import numpy as np
@@ -26,7 +25,6 @@ class SystemActionController:
         self.start_x, self.start_y = 0, 0
         self.press_start_time = 0
 
-        # State indicators to manage the application menu switcher pipeline
         self.alt_tab_active = False
         self.last_switch_time = 0
 
@@ -37,7 +35,6 @@ class SystemActionController:
         if gesture != "Peace Sign (Play/Pause)":
             self.media_triggered = False
 
-        # RELEASE GATES: If switcher menu was active but gesture drops, close the hooks
         if "Thumbs Up" not in gesture and self.alt_tab_active:
             pyautogui.keyUp("alt")
             self.alt_tab_active = False
@@ -66,9 +63,7 @@ class SystemActionController:
 
         action_triggered = "Tracking Pointer"
 
-        # 1. APPLICATION SELECTOR HUB WINDOW SWITCHER CONTROL
         if "Thumbs Up" in gesture:
-            # If switcher isn't open yet, fire Alt Down hold key lock
             if not self.alt_tab_active:
                 pyautogui.keyDown("alt")
                 pyautogui.press("tab")
@@ -76,16 +71,16 @@ class SystemActionController:
                 self.last_switch_time = current_time
                 return "APP SWITCHER OPENED", time_since_last
 
-            # Manage step navigation pacing loops (300ms intervals to prevent fly-by skipping)
             if current_time - self.last_switch_time > 0.35:
                 if gesture == "Thumbs Up (Switch Right)":
                     pyautogui.press("tab")
                     self.last_switch_time = current_time
+                    time.sleep(0.75)
                     return "SWITCHING FORWARD (Right)", time_since_last
                 elif gesture == "Thumbs Up (Switch Left)":
-                    # Shift + Tab cycles application choices backwards on Windows setups
                     pyautogui.hotkey("shift", "tab")
                     self.last_switch_time = current_time
+                    time.sleep(0.75)
                     return "SWITCHING BACKWARD (Left)", time_since_last
 
             return (
@@ -93,7 +88,6 @@ class SystemActionController:
                 time_since_last,
             )
 
-        # 2. SCROLLING ENGINE PIPELINE
         scroll_gestures = {
             "Open Palm (Scroll Up)": (win32con.MOUSEEVENTF_WHEEL, 150),
             "Open Palm (Scroll Down)": (win32con.MOUSEEVENTF_WHEEL, -150),
@@ -113,7 +107,6 @@ class SystemActionController:
                     return "SCROLL ERROR", time_since_last
             return "SCROLL WAITING", time_since_last
 
-        # 3. MOUSE CURSOR POSITIONING PIPELINE
         if (
             (gesture in ["Mouse Navigation Mode", "Air Drag Active"])
             and raw_landmarks is not None
@@ -153,7 +146,6 @@ class SystemActionController:
                         action_triggered = "PREPARED TO CLICK / TAP"
             return action_triggered, time_since_last
 
-        # 4. DISCRETE MEDIA CONTEXT KEYS
         if gesture == "Peace Sign (Play/Pause)":
             if not self.media_triggered:
                 pyautogui.press("playpause")
