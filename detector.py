@@ -23,7 +23,7 @@ class HandDetector:
             num_hands=1,
             min_hand_detection_confidence=0.5,
             min_hand_presence_confidence=0.5,
-            min_tracking_confidence=0.5,
+            min_tracking_confidence=0.6,
         )
         self.landmarker = self.HandLandmarker.create_from_options(options)
         self.frame_timestamp_ms = 0

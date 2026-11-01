@@ -44,7 +44,7 @@ def draw_dashboard(frame, gesture, action, locked_status, fist_frames, fps):
     )
 
     if gesture == "HOLDING FIST TO LOCK...":
-        progress = int((fist_frames / 90) * 100)
+        progress = int((fist_frames / 60) * 100)
         cv2.putText(
             frame,
             f"Locking Progress: {progress}%",
